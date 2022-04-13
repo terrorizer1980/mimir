@@ -14,7 +14,8 @@ func TestOSThread_Call(t *testing.T) {
 	t.Run("result channel already closed", func(t *testing.T) {
 		test.VerifyNoLeak(t)
 
-		thread := NewOSThread()
+		stopping := make(chan struct{})
+		thread := NewOSThread(stopping)
 
 		// Don't start the thread but close the results channel. This ensures that we're testing
 		// the case where the pool isn't shutdown yet, but we return a zero value to the caller.
@@ -30,9 +31,10 @@ func TestOSThread_Call(t *testing.T) {
 	t.Run("run by thread", func(t *testing.T) {
 		test.VerifyNoLeak(t)
 
-		thread := NewOSThread()
+		stopping := make(chan struct{})
+		thread := NewOSThread(stopping)
 		t.Cleanup(func() {
-			thread.Stop()
+			close(stopping)
 			thread.Join()
 		})
 
@@ -48,9 +50,10 @@ func TestOSThread_Call(t *testing.T) {
 	t.Run("run by thread but stopped", func(t *testing.T) {
 		test.VerifyNoLeak(t)
 
-		thread := NewOSThread()
+		stopping := make(chan struct{})
+		thread := NewOSThread(stopping)
 		thread.Start()
-		thread.Stop()
+		close(stopping)
 		thread.Join()
 
 		res, err := thread.Call(func() (interface{}, error) {

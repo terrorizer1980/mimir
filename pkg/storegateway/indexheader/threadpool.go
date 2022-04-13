@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	labelWaiting  = "waiting"
-	labelComplete = "complete"
+	labelWaiting = "waiting"
+	labelRunning = "running"
 )
 
 var ErrPoolStopped = errors.New("thread pool has been stopped")
@@ -56,7 +56,7 @@ func NewThreadPool(num int, reg prometheus.Registerer) *Threadpool {
 	}
 
 	for i := 0; i < num; i++ {
-		t := NewOSThread()
+		t := NewOSThread(tp.stopping)
 		t.Start()
 
 		// Use a slice so that we keep a reference to all threads that are running
@@ -80,11 +80,10 @@ func (t *Threadpool) start() {
 	// each of the expected threads in it.
 	<-t.stopping
 
-	// Stop and wait for all threads, regardless if they are "in" the pool or being
-	// used to run caller code. The avoids race conditions where threads are removed
-	// and added back to the pool while we are trying to stop all of them.
+	// Wait for all threads, regardless if they are "in" the pool or being used to
+	// run caller code. The avoids race conditions where threads are removed and
+	// added back to the pool while we are trying to stop all of them.
 	for _, thread := range t.threads {
-		thread.Stop()
 		thread.Join()
 	}
 }
@@ -94,7 +93,7 @@ func (t *Threadpool) Start() {
 }
 
 func (t *Threadpool) StopAndWait() {
-	// Indicate to all thread that they should stop, then wait for them to do so
+	// Indicate to all threads that they should stop, then wait for them to do so
 	// by trying to read from a channel that will be closed when all threads have
 	// finally stopped.
 	close(t.stopping)
@@ -108,15 +107,15 @@ func (t *Threadpool) Call(fn func() (interface{}, error)) (interface{}, error) {
 	case <-t.stopping:
 		return nil, ErrPoolStopped
 	case thread := <-t.pool:
-		waiting := time.Since(start)
+		acquired := time.Now()
 
 		defer func() {
-			complete := time.Since(start)
+			complete := time.Now()
 
 			t.pool <- thread
 			t.tasks.Dec()
-			t.timing.WithLabelValues(labelWaiting).Observe(waiting.Seconds())
-			t.timing.WithLabelValues(labelComplete).Observe(complete.Seconds())
+			t.timing.WithLabelValues(labelWaiting).Observe(start.Sub(acquired).Seconds())
+			t.timing.WithLabelValues(labelRunning).Observe(acquired.Sub(complete).Seconds())
 		}()
 
 		t.tasks.Inc()

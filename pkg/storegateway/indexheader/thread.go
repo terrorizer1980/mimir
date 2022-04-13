@@ -19,25 +19,26 @@ type execResult struct {
 }
 
 type OSThread struct {
-	// call is used to submit closures for this thread to execute.
-	call chan func() (interface{}, error)
-
-	// res is used to send the results of running closures back to callers.
-	res chan execResult
-
 	// stopping is a request for this thread to stop running.
 	stopping chan struct{}
 
 	// stopped is confirmation that the thread has stopped running.
 	stopped chan struct{}
+
+	// call is used to submit closures for this thread to execute.
+	call chan func() (interface{}, error)
+
+	// res is used to send the results of running closures back to callers.
+	res chan execResult
 }
 
-func NewOSThread() *OSThread {
+func NewOSThread(stopping chan struct{}) *OSThread {
 	return &OSThread{
-		call:     make(chan func() (interface{}, error), 1),
-		res:      make(chan execResult, 1),
-		stopping: make(chan struct{}),
+		stopping: stopping,
 		stopped:  make(chan struct{}),
+
+		call: make(chan func() (interface{}, error), 1),
+		res:  make(chan execResult, 1),
 	}
 }
 
@@ -70,16 +71,10 @@ func (o *OSThread) Start() {
 	go o.start()
 }
 
-// Stop indicates to the thread that it should stop accepting new work but, it
-// does *not* guarantee that all work is stopped after the method returns. If
-// you need to wait for all work to complete, call Join after Stop.
-func (o *OSThread) Stop() {
-	close(o.stopping)
-}
-
-// Join waits for the thread to complete any tasks it was executing after Stop
-// is called. This allows callers to ensure the thread has completed executing
-// which is useful in tests to verify no goroutines leak.
+// Join waits for the thread to complete any tasks it was executing after the
+// stopping channel is closed by the parent thread pool. This allows callers to
+// ensure the thread has completed executing which is useful in tests to verify
+// no goroutines leak.
 func (o *OSThread) Join() {
 	<-o.stopped
 }
