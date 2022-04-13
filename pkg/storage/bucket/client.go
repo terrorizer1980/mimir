@@ -85,7 +85,7 @@ func (cfg *Config) RegisterFlagsWithPrefixAndDefaultDirectory(prefix, dir string
 	cfg.Filesystem.RegisterFlagsWithPrefixAndDefaultDirectory(prefix, dir, f)
 
 	f.StringVar(&cfg.Backend, prefix+"backend", Filesystem, fmt.Sprintf("Backend storage to use. Supported backends are: %s.", strings.Join(cfg.supportedBackends(), ", ")))
-	f.StringVar(&cfg.StoragePrefix, prefix+"storage-prefix", "", fmt.Sprintf("Prefix for backend bucket/container. All files will be stored under this prefix."))
+	f.StringVar(&cfg.StoragePrefix, prefix+"storage-prefix", "", fmt.Sprintf("Prefix for all objects stored in the backend storage."))
 }
 
 func (cfg *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
